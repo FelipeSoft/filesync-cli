@@ -23,11 +23,26 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	go func() {
+		fileSyncJsonNotExists := !fileExists("./.filesync.json")
+		if fileSyncJsonNotExists {
+			os.Create("./.filesync.json")
+		}
+
+		fileSyncKeyNotExists := !fileExists("./.filesync.key")
+		if fileSyncKeyNotExists {
+			os.Create("./.filesync.key")
+		}
+
+		fileSyncNotExists := !fileExists("./.filesync")
+		if fileSyncNotExists {
+			os.Create("./.filesync")
+		}
+
 		for {
 			fmt.Print("filesync>")
 			line, err := reader.ReadString('\n')
 			if err != nil {
-				fmt.Println("Error reading input:", err)
+				fmt.Println("[FileSync Error] Error reading input:", err)
 				continue
 			}
 
@@ -40,13 +55,13 @@ func main() {
 				cancel()
 				fmt.Println("Bye!")
 				break
-			}			
+			}
 
 			args := strings.Fields(line)
 			cmd.RootCmd.SetArgs(args)
 			err = cmd.RootCmd.Execute()
 			if err != nil {
-				fmt.Printf("Command error: %s\n", err.Error())
+				fmt.Printf("[FileSync Error] Command error: %s\n", err.Error())
 			}
 		}
 	}()
@@ -54,4 +69,9 @@ func main() {
 	<-ctx.Done()
 	fmt.Println("Exited")
 	stop()
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !os.IsNotExist(err)
 }
