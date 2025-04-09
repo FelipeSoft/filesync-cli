@@ -26,12 +26,20 @@ func start(cmd *cobra.Command, args []string) {
 	s := bufio.NewScanner(pathsFile)
 	for s.Scan() {
 		line := s.Text()
-		log.Print(line)
-		err := chunk.ProcessFileInChunks(line, 10_000_000)
-		if err != nil {
-			log.Printf("[FileSync Error] Could not read the file chunk: %v", err)
-		}
+
+		go func(path string) {
+			log.Print(path)
+			chunks, err := chunk.ProcessFileInChunks(line, 5_000_000)
+			if err != nil {
+				log.Printf("[FileSync Error] Could not read the file chunk: %v", err)
+				return
+			}
+			for c := range chunks {
+				log.Printf("Chunk received: %d bytes", len(c))
+			}
+		}(line)
 	}
+
 }
 
 func init() {

@@ -5,40 +5,50 @@ import (
 	"os"
 )
 
-type Chunk struct {
-	StartBytes int64
-	EndBytes   int64
-}
-
-func ProcessFileInChunks(filepath string, chunkSizeInMB int64) error {
+func ProcessFileInChunks(filepath string, chunkSizeInMB int64) (chan []byte, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	fileSize := fileInfo.Size()
-	totalChunks := int64(fileSize / chunkSizeInMB)
+	totalChunks := (fileSize / chunkSizeInMB)
 
-	for c := range totalChunks {
-		offset := chunkSizeInMB * c
-		currentChunkSize := fileSize - offset
-		if chunkSizeInMB+offset > fileSize {
-			currentChunkSize = (chunkSizeInMB + offset) - fileSize
-		}
-
-		chunkBytes := make([]byte, currentChunkSize)
-		bytes, err := file.ReadAt(chunkBytes, offset)
-		if err != nil {
-			return err
-		}
-		log.Print(bytes)
+	if fileSize%chunkSizeInMB != 0 {
+		totalChunks++
 	}
 
-	return nil
+	chunks := make(chan []byte, chunkSizeInMB+1)
+
+	go func() {
+		defer file.Close()
+		defer close(chunks)
+
+		for c := int64(0); c < totalChunks; c++ {
+			startOffset := c * chunkSizeInMB
+			endOffset := startOffset + chunkSizeInMB
+
+			if endOffset > fileSize {
+				endOffset = fileSize
+			}
+
+			chunkSize := endOffset - startOffset
+			bytes := make([]byte, chunkSize)
+
+			n, err := file.ReadAt(bytes, startOffset)
+			if err != nil && err.Error() != "EOF" {
+				log.Printf("Error reading chunk %d: %v", c+1, err)
+				return
+			}
+
+			chunks <- bytes[:n]
+		}
+	}()
+
+	return chunks, nil
 }
